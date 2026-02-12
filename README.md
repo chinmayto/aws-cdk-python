@@ -5,9 +5,8 @@ Deploy a simple website on AWS EC2 instances in private subnets with an Applicat
 ## Architecture
 
 - **VPC**: Custom VPC with public and private subnets
-- **EC2 Instances**: Auto Scaling Group (2 instances) in private subnets
+- **EC2 Instances**: 2 instances in private subnets
 - **Load Balancer**: Application Load Balancer in public subnets
-- **Bastion Host**: For SSH access to private instances
 
 ## Prerequisites
 
@@ -46,6 +45,6 @@ After deployment, access your website using the Load Balancer DNS name from the 
 ## Infrastructure Details
 
 - **Instance Type**: t3.micro (Free Tier)
-- **Auto Scaling**: 1-3 instances, desired 2
+- **Instance Count**: 2 instances
 - **Subnets**: Public (ALB) and Private (EC2)
 - **Security**: Proper security groups and IAM roles

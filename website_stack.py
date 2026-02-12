@@ -1,8 +1,8 @@
 from aws_cdk import (
     Stack,
     aws_ec2 as ec2,
-    aws_autoscaling as autoscaling,
     aws_elasticloadbalancingv2 as elbv2,
+    aws_elasticloadbalancingv2_targets as targets,
     aws_iam as iam,
     CfnOutput,
     Duration
@@ -88,31 +88,44 @@ class WebsiteStack(Stack):
             "yum install -y httpd",
             "systemctl start httpd",
             "systemctl enable httpd",
-            "echo '<h1>Hello from AWS CDK!</h1>' > /var/www/html/index.html",
-            "echo '<p>This website is running on EC2 in a private subnet</p>' >> /var/www/html/index.html",
-            "echo '<p>Instance ID: ' $(curl -s http://169.254.169.254/latest/meta-data/instance-id) '</p>' >> /var/www/html/index.html"
+            "",
+            "# Get instance metadata using IMDSv2",
+            'TOKEN=$(curl --request PUT "http://169.254.169.254/latest/api/token" --header "X-aws-ec2-metadata-token-ttl-seconds: 3600")',
+            'instanceId=$(curl -s http://169.254.169.254/latest/meta-data/instance-id --header "X-aws-ec2-metadata-token: $TOKEN")',
+            'instanceAZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone --header "X-aws-ec2-metadata-token: $TOKEN")',
+            'privHostName=$(curl -s http://169.254.169.254/latest/meta-data/local-hostname --header "X-aws-ec2-metadata-token: $TOKEN")',
+            'privIPv4=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 --header "X-aws-ec2-metadata-token: $TOKEN")',
+            "",
+            "# Create HTML page",
+            'echo "<font face = \\"Verdana\\" size = \\"5\\">"                               > /var/www/html/index.html',
+            'echo "<center><h1>AWS Linux VM Deployed with CDK using Python</h1></center>"  >> /var/www/html/index.html',
+            'echo "<center> <b>EC2 Instance Metadata</b> </center>"                        >> /var/www/html/index.html',
+            'echo "<center> <b>Instance ID:</b> $instanceId </center>"                     >> /var/www/html/index.html',
+            'echo "<center> <b>AWS Availablity Zone:</b> $instanceAZ </center>"            >> /var/www/html/index.html',
+            'echo "<center> <b>Private Hostname:</b> $privHostName </center>"              >> /var/www/html/index.html',
+            'echo "<center> <b>Private IPv4:</b> $privIPv4 </center>"                      >> /var/www/html/index.html',
+            'echo "</font>"                                                                >> /var/www/html/index.html'
         )
 
-        # Launch template for Auto Scaling Group
-        launch_template = ec2.LaunchTemplate(
-            self, "WebsiteLaunchTemplate",
-            instance_type=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
-            machine_image=ec2.AmazonLinuxImage(generation=ec2.AmazonLinuxGeneration.AMAZON_LINUX_2),
-            security_group=ec2_security_group,
-            role=ec2_role,
-            user_data=user_data
-        )
-
-        # Auto Scaling Group
-        asg = autoscaling.AutoScalingGroup(
-            self, "WebsiteASG",
-            vpc=vpc,
-            launch_template=launch_template,
-            min_capacity=1,
-            max_capacity=3,
-            desired_capacity=2,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
-        )
+        # Create 2 EC2 instances in private subnets across different AZs
+        instances = []
+        private_subnets = vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS).subnets
+        
+        for i in range(2):
+            instance = ec2.Instance(
+                self, f"WebInstance{i+1}",
+                vpc=vpc,
+                instance_type=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+                machine_image=ec2.MachineImage.latest_amazon_linux2023(),
+                security_group=ec2_security_group,
+                role=ec2_role,
+                user_data=user_data,
+                vpc_subnets=ec2.SubnetSelection(
+                    subnets=[private_subnets[i % len(private_subnets)]]
+                ),
+                require_imdsv2=True
+            )
+            instances.append(instance)
 
         # Application Load Balancer
         alb = elbv2.ApplicationLoadBalancer(
@@ -129,14 +142,12 @@ class WebsiteStack(Stack):
             vpc=vpc,
             port=80,
             protocol=elbv2.ApplicationProtocol.HTTP,
+            targets=[targets.InstanceIdTarget(instance.instance_id) for instance in instances],
             health_check=elbv2.HealthCheck(
                 path="/",
                 interval=Duration.seconds(30)
             )
         )
-        
-        # Add the Auto Scaling Group to the target group
-        target_group.add_target(asg)
 
         # Listener
         listener = alb.add_listener(
@@ -144,13 +155,6 @@ class WebsiteStack(Stack):
             port=80,
             protocol=elbv2.ApplicationProtocol.HTTP,
             default_target_groups=[target_group]
-        )
-
-        # Bastion host for SSH access to private instances
-        bastion_host = ec2.BastionHostLinux(
-            self, "BastionHost",
-            vpc=vpc,
-            subnet_selection=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC)
         )
 
         # Outputs
@@ -161,9 +165,15 @@ class WebsiteStack(Stack):
         )
         
         CfnOutput(
-            self, "BastionHostId",
-            value=bastion_host.instance_id,
-            description="Instance ID of the bastion host"
+            self, "Instance1Id",
+            value=instances[0].instance_id,
+            description="Instance ID of the first EC2 instance"
+        )
+        
+        CfnOutput(
+            self, "Instance2Id",
+            value=instances[1].instance_id,
+            description="Instance ID of the second EC2 instance"
         )
         
         CfnOutput(
