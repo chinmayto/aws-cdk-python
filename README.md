@@ -81,11 +81,8 @@ We'll build a highly available web application with the following architecture:
 
 Before we begin, ensure you have:
 
-- **AWS Account** with appropriate permissions
-- **AWS CLI** installed and configured (`aws configure`)
 - **Node.js** (v14 or later) for CDK CLI
 - **Python 3.8+** installed
-- **Git** (optional, for cloning the repository)
 
 ## Project Structure
 
@@ -128,7 +125,7 @@ Clone the repository or create a new directory:
 
 ```bash
 git clone https://github.com/chinmayto/aws-cdk-python.git
-cd aws-cdk-website-deployment
+cd aws-cdk-python
 ```
 
 Create a Python virtual environment:
@@ -158,6 +155,23 @@ cdk bootstrap
 ```
 
 This command creates a CloudFormation stack called `CDKToolkit` in your AWS account.
+```bash
+>cdk bootstrap
+Deploying to account: 197317184204, region: us-east-1
+ ⏳  Bootstrapping environment aws://197317184204/us-east-1...
+Trusted accounts for deployment: (none)
+Trusted accounts for lookup: (none)
+Using default execution policy of 'arn:aws:iam::aws:policy/AdministratorAccess'. Pass '--cloudformation-execution-policies' to customize.
+CDKToolkit: creating CloudFormation changeset...
+CDKToolkit |  0/12 | 10:53:19 pm | REVIEW_IN_PROGRESS   | AWS::CloudFormation::Stack | CDKToolkit User Initiated
+.
+.
+.
+CDKToolkit | 12/12 | 10:54:11 pm | CREATE_COMPLETE      | AWS::CloudFormation::Stack | CDKToolkit 
+ ✅  Environment aws://197317184204/us-east-1 bootstrapped.
+ ```
+
+![alt text](/images/CDKToolkit_stack.png)
 
 ## Step 4: Review the Infrastructure Code
 
@@ -375,11 +389,79 @@ CDK will show you the changes and ask for confirmation. Type `y` to proceed.
 The deployment takes approximately 5-10 minutes. Once complete, you'll see outputs including:
 
 ```
+>cdk deploy
+Deploying to account: 197317184204, region: us-east-1
+
+✨  Synthesis time: 16.13s
+
+WebsiteStack: start: Building WebsiteStack/Custom::VpcRestrictDefaultSGCustomResourceProvider Code
+WebsiteStack: success: Built WebsiteStack/Custom::VpcRestrictDefaultSGCustomResourceProvider Code
+WebsiteStack: start: Building WebsiteStack Template
+WebsiteStack: success: Built WebsiteStack Template
+WebsiteStack: start: Publishing WebsiteStack/Custom::VpcRestrictDefaultSGCustomResourceProvider Code (197317184204-us-east-1-78ffe0b8)
+WebsiteStack: start: Publishing WebsiteStack Template (197317184204-us-east-1-2ed930b7)
+WebsiteStack: success: Published WebsiteStack Template (197317184204-us-east-1-2ed930b7)
+WebsiteStack: success: Published WebsiteStack/Custom::VpcRestrictDefaultSGCustomResourceProvider Code (197317184204-us-east-1-78ffe0b8)
+Stack WebsiteStack
+IAM Statement Changes
+┌───┬─────────────────────────────────────────────────┬────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────┬───────────┐
+│   │ Resource                                        │ Effect │ Action                                          │ Principal                                       │ Condition │
+├───┼─────────────────────────────────────────────────┼────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────┼───────────┤ 
+│ + │ ${Custom::VpcRestrictDefaultSGCustomResourcePro │ Allow  │ sts:AssumeRole                                  │ Service:lambda.amazonaws.com                    │           │ 
+│   │ vider/Role.Arn}                                 │        │                                                 │                                                 │           │ 
+├───┼─────────────────────────────────────────────────┼────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────┼───────────┤ 
+│ + │ ${EC2Role.Arn}                                  │ Allow  │ sts:AssumeRole                                  │ Service:ec2.amazonaws.com                       │           │ 
+├───┼─────────────────────────────────────────────────┼────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────┼───────────┤
+│ + │ arn:aws:ec2:us-east-1:197317184204:security-gro │ Allow  │ ec2:AuthorizeSecurityGroupEgress                │ AWS:${Custom::VpcRestrictDefaultSGCustomResourc │           │ 
+│   │ up/${WebsiteVPC.DefaultSecurityGroup}           │        │ ec2:AuthorizeSecurityGroupIngress               │ eProvider/Role}                                 │           │ 
+│   │                                                 │        │ ec2:RevokeSecurityGroupEgress                   │                                                 │           │ 
+│   │                                                 │        │ ec2:RevokeSecurityGroupIngress                  │                                                 │           │ 
+└───┴─────────────────────────────────────────────────┴────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────┴───────────┘ 
+IAM Policy Changes
+┌───┬────────────────────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────┐
+│   │ Resource                                                   │ Managed Policy ARN                                                                           │
+├───┼────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ + │ ${Custom::VpcRestrictDefaultSGCustomResourceProvider/Role} │ {"Fn::Sub":"arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"} │
+├───┼────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ + │ ${EC2Role}                                                 │ arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore                           │
+└───┴────────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────┘
+Security Group Changes
+┌───┬─────────────────────────────┬─────┬────────────┬─────────────────────────────┐
+│   │ Group                       │ Dir │ Protocol   │ Peer                        │
+├───┼─────────────────────────────┼─────┼────────────┼─────────────────────────────┤
+│ + │ ${ALBSecurityGroup.GroupId} │ In  │ TCP 80     │ Everyone (IPv4)             │
+│ + │ ${ALBSecurityGroup.GroupId} │ In  │ TCP 443    │ Everyone (IPv4)             │
+│ + │ ${ALBSecurityGroup.GroupId} │ Out │ Everything │ Everyone (IPv4)             │
+├───┼─────────────────────────────┼─────┼────────────┼─────────────────────────────┤
+│ + │ ${EC2SecurityGroup.GroupId} │ In  │ TCP 22     │ ${WebsiteVPC.CidrBlock}     │
+│ + │ ${EC2SecurityGroup.GroupId} │ In  │ TCP 80     │ ${ALBSecurityGroup.GroupId} │
+│ + │ ${EC2SecurityGroup.GroupId} │ Out │ Everything │ Everyone (IPv4)             │
+└───┴─────────────────────────────┴─────┴────────────┴─────────────────────────────┘
+(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)
+
+
+"--require-approval" is enabled and stack includes security-sensitive updates: 'Do you wish to deploy these changes' (y/n) y
+WebsiteStack: deploying... [1/1]
+WebsiteStack: creating CloudFormation changeset...
+WebsiteStack |  0/39 | 10:58:15 pm | REVIEW_IN_PROGRESS   | AWS::CloudFormation::Stack                | WebsiteStack User Initiated
+.
+.
+.
+WebsiteStack | 39/39 | 11:01:35 pm | CREATE_COMPLETE      | AWS::CloudFormation::Stack                | WebsiteStack
+
+ ✅  WebsiteStack
+
+✨  Deployment time: 213.18s
+
 Outputs:
-WebsiteStack.LoadBalancerDNS = WebsiteALB-xxxxxxxxx.us-east-1.elb.amazonaws.com
-WebsiteStack.Instance1Id = i-xxxxxxxxxxxxxxxxx
-WebsiteStack.Instance2Id = i-yyyyyyyyyyyyyyyyy
-WebsiteStack.VPCId = vpc-zzzzzzzzzzzzzzzzz
+WebsiteStack.Instance1Id = i-089c31f66c61482a3
+WebsiteStack.Instance2Id = i-0af48aefd5e4efcc2
+WebsiteStack.LoadBalancerDNS = Websit-Websi-5kyWZuGmscD3-1445557942.us-east-1.elb.amazonaws.com
+WebsiteStack.VPCId = vpc-002b8b79c7f0e2f49
+Stack ARN:
+arn:aws:cloudformation:us-east-1:197317184204:stack/WebsiteStack/33bc7c70-11a6-11f1-8888-0affc0f3836d
+
+✨  Total time: 229.31s
 ```
 
 ## Step 6: Test Your Application
@@ -387,10 +469,14 @@ WebsiteStack.VPCId = vpc-zzzzzzzzzzzzzzzzz
 Copy the LoadBalancerDNS value from the outputs and open it in your browser:
 
 ```
-http://WebsiteALB-xxxxxxxxx.us-east-1.elb.amazonaws.com
+Websit-Websi-5kyWZuGmscD3-1445557942.us-east-1.elb.amazonaws.com
 ```
 
 You should see a webpage displaying EC2 instance metadata. Refresh the page multiple times to see the load balancer distributing traffic between the two instances (notice the Instance ID and Availability Zone changing).
+
+![alt text](/images/ec2_1.png)
+
+![alt text](/images/ec2_2.png)
 
 ## Step 7: Explore Your Infrastructure
 
@@ -399,10 +485,9 @@ View the CloudFormation stack in the AWS Console:
 2. Find the `WebsiteStack` stack
 3. Explore Resources, Events, and Outputs tabs
 
-Check your EC2 instances:
-1. Navigate to EC2 service
-2. View your 2 running instances in different AZs
-3. Note they're in private subnets with no public IPs
+![alt text](/images/WebsiteStack_stack.png)
+
+![alt text](/images/WebsiteStack_stack_2.png)
 
 ## Cleanup
 
@@ -413,6 +498,20 @@ cdk destroy
 ```
 
 Type `y` to confirm. CDK will delete all resources created by the stack.
+
+```bash
+>cdk destroy
+Deploying to account: 197317184204, region: us-east-1
+Are you sure you want to delete: WebsiteStack (y/n) y
+WebsiteStack: destroying... [1/1]
+WebsiteStack |   0 | 11:08:57 pm | DELETE_IN_PROGRESS   | AWS::CloudFormation::Stack                | WebsiteStack User Initiated
+.
+.
+.
+WebsiteStack |  37 | 11:10:22 pm | DELETE_IN_PROGRESS   | AWS::EC2::VPC                             | WebsiteVPC (WebsiteVPCD8B49DC8)
+
+ ✅  WebsiteStack: destroyed
+```
 
 
 ## Conclusion
@@ -425,4 +524,3 @@ The combination of CDK's developer-friendly abstractions and CloudFormation's ro
 
 - **GitHub Repository**: [aws-cdk-python](https://github.com/chinmayto/aws-cdk-python)
 - **AWS CDK Documentation**: https://docs.aws.amazon.com/cdk/
-
